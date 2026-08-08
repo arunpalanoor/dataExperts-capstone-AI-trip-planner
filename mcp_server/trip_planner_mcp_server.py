@@ -441,58 +441,19 @@ def get_itinerary(trip_id: int) -> dict:
     return {"status": "success", "count": len(items), "itinerary": items}
 
 
-@mcp.tool
-def add_itinerary_item(
-    trip_id: int,
-    day_date: str,
-    activity_id: int | None = None,
-    destination_id: int | None = None,
-    name: str | None = None,
-    is_outdoor: bool = True,
-    start_time: str | None = None,
-    end_time: str | None = None,
-    notes: str | None = None,
-) -> dict:
-    """
-    Add an item to a trip's itinerary for a given day - either from an
-    existing activity (e.g. a result from search_activities) or as a new
-    custom activity (e.g. "lunch at the visitor center") tied to a
-    destination. Appended to the end of that day's schedule; use
-    move_itinerary_item afterward to reorder if needed.
-
-    Args:
-        trip_id: The trip this item belongs to.
-        day_date: The day this item is scheduled for (YYYY-MM-DD).
-        activity_id: An existing activity's id, if using one.
-        destination_id: Required if activity_id is not given - which destination this custom item belongs to.
-        name: Required if activity_id is not given - a name for the custom activity.
-        is_outdoor: Whether this custom activity is outdoor (affects weather-based rescheduling later). Ignored if activity_id is given.
-        start_time: Optional start time (HH:MM).
-        end_time: Optional end time (HH:MM).
-        notes: Optional notes, e.g. why this was scheduled here.
-
-    Returns:
-        A dict with status, the created itinerary_item_id, and activity_id used.
-    """
-    if activity_id is None:
-        if destination_id is None or not name:
-            return {"status": "error", "message": "Either activity_id, or both destination_id and name, are required."}
-        inserted = lakebase.run_insert_returning(
-            """
-            INSERT INTO activities (destination_id, name, is_outdoor, source)
-            VALUES (%s, %s, %s, 'agent_added')
-            RETURNING id
-            """,
-            (destination_id, name, is_outdoor),
-        )
-        activity_id = inserted["id"]
-
+def _next_position(trip_id: int, day_date: str) -> int:
     position_row = lakebase.run_query(
         "SELECT COALESCE(MAX(position), -1) AS max_position FROM itinerary_items WHERE trip_id = %s AND day_date = %s",
         (trip_id, day_date),
     )
-    position = position_row[0]["max_position"] + 1
+    return position_row[0]["max_position"] + 1
 
+
+def _insert_itinerary_item(
+    trip_id: int, activity_id: int, day_date: str,
+    start_time: str | None, end_time: str | None, notes: str | None,
+) -> int:
+    position = _next_position(trip_id, day_date)
     item = lakebase.run_insert_returning(
         """
         INSERT INTO itinerary_items (trip_id, activity_id, day_date, start_time, end_time, position, notes)
@@ -501,8 +462,85 @@ def add_itinerary_item(
         """,
         (trip_id, activity_id, day_date, start_time, end_time, position, notes),
     )
+    return item["id"]
 
-    return {"status": "success", "itinerary_item_id": item["id"], "activity_id": activity_id}
+
+@mcp.tool
+def add_itinerary_item(
+    trip_id: int,
+    day_date: str,
+    activity_id: int,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    notes: str | None = None,
+) -> dict:
+    """
+    Add an existing activity (from search_activities or get_trip) to a
+    trip's itinerary for a given day. Appended to the end of that day's
+    schedule; use move_itinerary_item afterward to reorder if needed.
+
+    For a new activity that isn't already in the database, use
+    add_custom_itinerary_item instead.
+
+    Args:
+        trip_id: The trip this item belongs to.
+        day_date: The day this item is scheduled for (YYYY-MM-DD).
+        activity_id: An existing activity's id, from search_activities or get_trip.
+        start_time: Optional start time (HH:MM).
+        end_time: Optional end time (HH:MM).
+        notes: Optional notes, e.g. why this was scheduled here.
+
+    Returns:
+        A dict with status and the created itinerary_item_id.
+    """
+    item_id = _insert_itinerary_item(trip_id, activity_id, day_date, start_time, end_time, notes)
+    return {"status": "success", "itinerary_item_id": item_id, "activity_id": activity_id}
+
+
+@mcp.tool
+def add_custom_itinerary_item(
+    trip_id: int,
+    day_date: str,
+    destination_id: int,
+    name: str,
+    is_outdoor: bool = True,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    notes: str | None = None,
+) -> dict:
+    """
+    Add a new custom activity (not already in the database) to a trip's
+    itinerary, e.g. "lunch at the visitor center" - creates the activity
+    record and schedules it in one step. Appended to the end of that day's
+    schedule; use move_itinerary_item afterward to reorder if needed.
+
+    For an activity that already exists (e.g. from search_activities), use
+    add_itinerary_item instead.
+
+    Args:
+        trip_id: The trip this item belongs to.
+        day_date: The day this item is scheduled for (YYYY-MM-DD).
+        destination_id: Which destination this custom item belongs to.
+        name: A name for the custom activity.
+        is_outdoor: Whether this activity is outdoor (affects weather-based rescheduling later).
+        start_time: Optional start time (HH:MM).
+        end_time: Optional end time (HH:MM).
+        notes: Optional notes, e.g. why this was scheduled here.
+
+    Returns:
+        A dict with status, the created itinerary_item_id, and activity_id created.
+    """
+    inserted = lakebase.run_insert_returning(
+        """
+        INSERT INTO activities (destination_id, name, is_outdoor, source)
+        VALUES (%s, %s, %s, 'agent_added')
+        RETURNING id
+        """,
+        (destination_id, name, is_outdoor),
+    )
+    activity_id = inserted["id"]
+    item_id = _insert_itinerary_item(trip_id, activity_id, day_date, start_time, end_time, notes)
+    return {"status": "success", "itinerary_item_id": item_id, "activity_id": activity_id}
 
 
 @mcp.tool

@@ -1,4 +1,9 @@
 """
+Superseded by refresh_weather.ipynb, which is what the Databricks Job
+actually runs (adds a %pip install cell that only made sense directly in
+the notebook). Kept here for reference/diffing since plain .py is easier to
+review than notebook JSON - keep both in sync if you change the logic.
+
 Databricks Job: refresh hourly weather + air quality forecasts.
 
 Widget parameter: trip_id (optional)

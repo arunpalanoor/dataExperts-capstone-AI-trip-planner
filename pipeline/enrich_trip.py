@@ -1,4 +1,10 @@
 """
+Superseded by enrich_trip.ipynb, which is what the Databricks Job actually
+runs (adds a %pip install cell and Wikipedia rate-limit handling that only
+made sense to add directly in the notebook). Kept here for reference/diffing
+since plain .py is easier to review than notebook JSON - keep both in sync
+if you change the logic.
+
 Databricks Job: enrich a trip's destinations after it is created or edited.
 
 Widget parameter: trip_id
