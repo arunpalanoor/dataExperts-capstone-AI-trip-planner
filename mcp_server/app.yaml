@@ -1,0 +1,18 @@
+command:
+  - "python"
+  - "trip_planner_mcp_server.py"
+
+resources:
+  - name: requirements
+    source:
+      path: ./requirements.txt
+
+env:
+  - name: LAKEBASE_SECRET_SCOPE
+    value: "trip_planner"
+  - name: LAKEBASE_SECRET_KEY
+    value: "lakebase-url"
+  - name: EMBEDDING_MODEL
+    value: "sentence-transformers/all-MiniLM-L6-v2"
+  - name: TRIP_PIPELINE_JOB_ID
+    value: ""

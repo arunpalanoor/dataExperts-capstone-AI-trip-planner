@@ -1,0 +1,6 @@
+databricks-sdk
+psycopg2-binary
+SQLAlchemy
+requests
+sentence-transformers
+pandas

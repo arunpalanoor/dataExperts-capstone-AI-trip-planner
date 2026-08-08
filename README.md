@@ -104,16 +104,79 @@ air quality).
 - Add, remove, or move itinerary items.
 - Explain why it made each weather-based change.
 
-## Repo layout (planned)
+## Repo layout
 
 ```
-pipeline/        Spark ingestion + enrichment + embedding job(s)
+pipeline/        enrich_trip.py, refresh_weather.py - Databricks Jobs
 mcp_server/      FastMCP server exposing itinerary tools (Databricks App)
 dashboard/       Flask frontend (Databricks App)
 sql/             Lakebase schema (sql/schema.sql)
+lakebase.py      Postgres connection helper (copied into each folder above -
+                 Databricks Apps/Jobs don't share installs across deploys)
+setup_secrets.py One-time script to store the Lakebase URL secret
+```
+
+## Agent setup
+
+The agent is a Databricks **Agent Bricks** agent with this MCP server
+registered as an external tool. Suggested system prompt:
+
+```
+You are a trip planning assistant with tools to manage a user's trips,
+destinations, activities, itineraries, and packing lists.
+
+Always start by calling get_user_profile with the user's email to load
+their interests, constraints, and allergies - use this to personalize
+every suggestion you make.
+
+When building an itinerary:
+- Use search_activities to find activities matching the user's interests
+  for the trip.
+- Use get_weather_forecast for each destination before scheduling outdoor
+  activities.
+- Use add_itinerary_item to place activities on specific days, favoring
+  outdoor activities on days without likely_rain or poor_air_quality, and
+  indoor or custom activities on days that have either.
+
+When rescheduling:
+- If get_weather_forecast shows likely_rain or poor_air_quality for a day
+  with a scheduled outdoor item, use move_itinerary_item to move it to a
+  better day. Always explain your reasoning, citing the specific numbers
+  (rain probability, AQI), both in the notes parameter and in your reply.
+
+When building a packing list:
+- Review the finalized itinerary (get_itinerary) and each day's forecast,
+  then use add_packing_item for each recommended item with a reason tied to
+  the itinerary/weather (e.g. "rain jacket - 70% rain chance on day 2").
+
+For direct requests to add, remove, or move itinerary items, call
+add_itinerary_item / remove_itinerary_item / move_itinerary_item directly
+rather than regenerating the whole itinerary.
+
+Never fabricate weather, activity, or trip data - only use what the tools
+return. If get_weather_forecast returns status "no_data", tell the user the
+forecast isn't ready yet rather than guessing.
 ```
 
 ## Setup
 
-TODO — fill in once the pipeline/app/agent are running, following the
-secrets + Git-folder deploy steps from Day 3's README.
+1. **Lakebase**: create the instance, apply `sql/schema.sql`, run
+   `python setup_secrets.py` to store the connection URL under the
+   `trip_planner` secret scope (key `lakebase-url`).
+2. **Pipeline**: create a Git folder for this repo in Databricks. Create
+   **one Databricks Job with two tasks** pointed at `pipeline/enrich_trip.py`
+   then `pipeline/refresh_weather.py` (task 2 depending on task 1), both
+   reading a shared `trip_id` job parameter - this is what `create_trip`/
+   `update_trip` trigger. Separately, schedule `pipeline/refresh_weather.py`
+   to run **daily with no `trip_id` param**, to refresh all active trips.
+   Note this job's id for step 3.
+3. **Apps**: deploy `mcp_server/` and `dashboard/` as two separate
+   Databricks Apps (Compute > Apps > Create app > Custom, pointed at each
+   subfolder). In both `app.yaml`s, set `TRIP_PIPELINE_JOB_ID` to the job id
+   from step 2.
+4. **Register the MCP server**: AI Gateway > MCPs > Add MCP, pointed at the
+   `mcp_server` app's URL (streamable HTTP).
+5. **Agent Bricks**: create an agent, attach the registered MCP server as a
+   tool, and use the system prompt above.
+6. **Try it**: open the `dashboard` app's URL, create a trip and save a
+   profile, then chat with the agent to build an itinerary.

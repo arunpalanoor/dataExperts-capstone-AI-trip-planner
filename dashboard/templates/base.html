@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Trip Planner{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="sidebar-brand" href="/?email={{ email }}">
+            <div class="logo-mark"></div>
+            <span class="brand-name">Trip Planner</span>
+        </a>
+
+        <form class="switch-form" method="get" action="/">
+            <label>Viewing as</label>
+            <input type="email" name="email" value="{{ email }}" required>
+            <button type="submit">Switch</button>
+        </form>
+
+        <div class="sidebar-section-label">Your trips</div>
+        <nav class="trip-nav">
+            {% for t in trips %}
+            <a href="/trip/{{ t.id }}" class="trip-nav-item {{ 'active' if current_trip_id == t.id else '' }}">
+                <span class="trip-nav-name">{{ t.name }}</span>
+                <span class="trip-nav-dates">{{ t.start_date }}</span>
+            </a>
+            {% else %}
+            <p class="empty">No trips yet.</p>
+            {% endfor %}
+        </nav>
+        <a class="new-trip-link" href="/?email={{ email }}#plan-trip">+ New trip</a>
+    </aside>
+
+    <main class="main">
+        {% block content %}{% endblock %}
+    </main>
+</div>
+</body>
+</html>

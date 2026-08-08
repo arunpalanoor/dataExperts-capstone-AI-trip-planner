@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ trip.name }} - Trip Planner{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ trip.name }}</h1>
+<p class="trip-meta">{{ trip.start_date }} &ndash; {{ trip.end_date }} &middot; <span class="pill pill-neutral">{{ trip.status }}</span></p>
+
+<div class="card">
+    <h2>Destinations</h2>
+    {% for dest in destinations %}
+    <h3>{{ dest.canonical_name or dest.name }}</h3>
+    <p class="desc">{{ dest.description or "Not enriched yet - the pipeline may still be running." }}</p>
+    {% set forecast = weather_by_destination.get(dest.id, []) %}
+    {% if forecast %}
+    <table>
+        <tr><th>Date</th><th>Avg temp (&deg;C)</th><th>Rain chance</th><th>AQI</th><th>UV</th></tr>
+        {% for day in forecast %}
+        <tr>
+            <td>{{ day.forecast_date }}</td>
+            <td>{{ day.avg_temperature_c }}</td>
+            <td class="{{ 'flag-rain' if (day.max_precipitation_probability or 0) >= 50 else '' }}">{{ day.max_precipitation_probability }}%</td>
+            <td class="{{ 'flag-aqi' if (day.max_us_aqi or 0) >= 101 else '' }}">{{ day.max_us_aqi }}</td>
+            <td>{{ day.max_uv_index }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="empty">No weather data yet.</p>
+    {% endif %}
+    {% endfor %}
+</div>
+
+<div class="card">
+    <h2>Itinerary</h2>
+    {% if itinerary_by_day %}
+    {% for day_date, items in itinerary_by_day.items() %}
+    <h3>{{ day_date }}</h3>
+    <table>
+        <tr><th>Time</th><th>Activity</th><th>Status</th><th>Notes</th></tr>
+        {% for item in items %}
+        <tr>
+            <td>{{ item.start_time or '' }}{% if item.end_time %} - {{ item.end_time }}{% endif %}</td>
+            <td>
+                {{ item.activity_name or 'Untitled' }}
+                {% if item.is_outdoor %}<span class="pill pill-outdoor">outdoor</span>{% else %}<span class="pill pill-indoor">indoor</span>{% endif %}
+            </td>
+            <td><span class="pill pill-neutral">{{ item.status }}</span></td>
+            <td class="desc">{{ item.notes or '' }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endfor %}
+    {% else %}
+    <p class="empty">No itinerary yet &mdash; ask the agent to build one.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Packing list</h2>
+    {% if packing_list %}
+    <table>
+        <tr><th></th><th>Item</th><th>Reason</th><th>Category</th></tr>
+        {% for item in packing_list %}
+        <tr>
+            <td>
+                <form method="post" action="/trip/{{ trip.id }}/packing/{{ item.id }}/toggle" style="margin:0;">
+                    <input type="hidden" name="packed" value="{{ 'false' if item.packed else 'true' }}">
+                    <input type="checkbox" onchange="this.form.submit()" {% if item.packed %}checked{% endif %}>
+                </form>
+            </td>
+            <td>{{ item.item_name }}</td>
+            <td class="desc">{{ item.reason or '' }}</td>
+            <td>{{ item.category or '' }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+    <p class="empty">No packing list yet &mdash; ask the agent to build one.</p>
+    {% endif %}
+</div>
+{% endblock %}

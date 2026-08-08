@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Trip Planner{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ 'Welcome back, ' + user.display_name if user and user.display_name else 'Welcome' }}</h1>
+<p class="subtitle">AI Trip and Outdoor Activity Planner</p>
+
+<div class="card">
+    <h2>Profile settings</h2>
+    <form method="post" action="/profile">
+        <input type="hidden" name="email" value="{{ email }}">
+        <label>Display name</label>
+        <input type="text" name="display_name" value="{{ user.display_name if user else '' }}">
+        <label>Preferences / notes (interests, constraints, allergies)</label>
+        <textarea name="preferences" placeholder="e.g. I love hiking and photography, avoid high-pollen days, vegetarian">{{ user.preferences if user else '' }}</textarea>
+        <button type="submit">Save profile</button>
+    </form>
+</div>
+
+<div class="card" id="plan-trip">
+    <h2>Plan a new trip</h2>
+    <form method="post" action="/trips">
+        <input type="hidden" name="email" value="{{ email }}">
+        <label>Trip name</label>
+        <input type="text" name="name" required placeholder="e.g. Yosemite in June">
+        <label>Start date</label>
+        <input type="date" name="start_date" required>
+        <label>End date</label>
+        <input type="date" name="end_date" required>
+        <label>Destination(s) &mdash; comma-separated</label>
+        <input type="text" name="destination_names" required placeholder="e.g. Yosemite National Park">
+        <button type="submit">Create trip</button>
+    </form>
+</div>
+{% endblock %}
