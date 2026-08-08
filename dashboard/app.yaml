@@ -15,6 +15,6 @@ env:
   - name: EMBEDDING_MODEL
     value: "sentence-transformers/all-MiniLM-L6-v2"
   - name: TRIP_PIPELINE_JOB_ID
-    value: ""
+    value: "877854758643169"
   - name: DEFAULT_USER_EMAIL
     value: "demo@example.com"
