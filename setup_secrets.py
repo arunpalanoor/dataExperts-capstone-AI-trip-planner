@@ -12,15 +12,15 @@ import getpass
 
 w = WorkspaceClient()
 
-w.secrets.create_scope(scope="database")
+w.secrets.create_scope(scope="trip_planner")
 w.secrets.put_secret(
-    scope="database",
+    scope="trip_planner",
     key="lakebase-url",
     string_value=getpass.getpass("Paste your lakebase url")
 )
 
 w.secrets.put_acl(
-    scope="database",
+    scope="trip_planner",
     principal="users",
     permission=workspace.AclPermission.READ,
 )
