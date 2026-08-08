@@ -143,6 +143,37 @@ def create_trip():
     return redirect(url_for("index", email=email))
 
 
+@app.route("/trip/<int:trip_id>/edit", methods=["POST"])
+def edit_trip(trip_id):
+    name = request.form.get("name") or None
+    start_date = request.form.get("start_date") or None
+    end_date = request.form.get("end_date") or None
+    status = request.form.get("status") or None
+    add_destination_names = [
+        d.strip() for d in request.form.get("add_destination_names", "").split(",") if d.strip()
+    ]
+
+    lakebase.run_write(
+        """
+        UPDATE trips
+        SET name = COALESCE(%s, name),
+            start_date = COALESCE(%s, start_date),
+            end_date = COALESCE(%s, end_date),
+            status = COALESCE(%s, status),
+            updated_at = now()
+        WHERE id = %s
+        """,
+        (name, start_date, end_date, status, trip_id),
+    )
+
+    for dest_name in add_destination_names:
+        lakebase.run_write("INSERT INTO destinations (trip_id, name) VALUES (%s, %s)", (trip_id, dest_name))
+
+    _trigger_trip_pipeline(trip_id)
+
+    return redirect(url_for("trip_detail", trip_id=trip_id))
+
+
 @app.route("/trip/<int:trip_id>")
 def trip_detail(trip_id):
     trip_rows = lakebase.run_query(

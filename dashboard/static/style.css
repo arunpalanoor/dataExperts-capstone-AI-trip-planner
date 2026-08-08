@@ -164,6 +164,47 @@ h1 {
     font-size: 0.95rem;
 }
 
+.trip-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.btn-ghost {
+    display: inline-block;
+    padding: 0.5rem 1.1rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    background: white;
+    list-style: none;
+    white-space: nowrap;
+}
+.btn-ghost::-webkit-details-marker { display: none; }
+.btn-ghost:hover { border-color: var(--primary-2); color: var(--primary-2); }
+
+.edit-trip { position: relative; }
+
+.edit-trip-form {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    z-index: 10;
+    width: 340px;
+    max-width: 85vw;
+    margin-bottom: 0;
+}
+.edit-trip-form button { width: 100%; }
+
+@media (max-width: 720px) {
+    .edit-trip-form { position: static; width: 100%; margin-top: 0.75rem; }
+}
+
 .card {
     background: var(--card-bg);
     border: 1px solid var(--border);
@@ -196,7 +237,7 @@ label {
     margin-bottom: 0.3rem;
 }
 
-input[type=text], input[type=email], input[type=date], textarea {
+input[type=text], input[type=email], input[type=date], textarea, select {
     width: 100%;
     padding: 0.6rem 0.75rem;
     border: 1.5px solid var(--border);
@@ -207,7 +248,7 @@ input[type=text], input[type=email], input[type=date], textarea {
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-input:focus, textarea:focus {
+input:focus, textarea:focus, select:focus {
     outline: none;
     border-color: var(--primary-2);
     box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);

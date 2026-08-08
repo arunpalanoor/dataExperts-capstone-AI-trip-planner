@@ -1,7 +1,29 @@
 {% extends "base.html" %}
 {% block title %}{{ trip.name }} - Trip Planner{% endblock %}
 {% block content %}
-<h1 class="page-title">{{ trip.name }}</h1>
+<div class="trip-header">
+    <h1 class="page-title">{{ trip.name }}</h1>
+    <details class="edit-trip">
+        <summary class="btn-ghost">Edit trip</summary>
+        <form class="edit-trip-form card" method="post" action="/trip/{{ trip.id }}/edit">
+            <label>Trip name</label>
+            <input type="text" name="name" value="{{ trip.name }}" required>
+            <label>Start date</label>
+            <input type="date" name="start_date" value="{{ trip.start_date }}" required>
+            <label>End date</label>
+            <input type="date" name="end_date" value="{{ trip.end_date }}" required>
+            <label>Status</label>
+            <select name="status">
+                {% for s in ['planning', 'confirmed', 'completed', 'cancelled'] %}
+                <option value="{{ s }}" {{ 'selected' if trip.status == s else '' }}>{{ s }}</option>
+                {% endfor %}
+            </select>
+            <label>Add destination(s) &mdash; comma-separated (optional)</label>
+            <input type="text" name="add_destination_names" placeholder="e.g. Sequoia National Park">
+            <button type="submit">Save changes</button>
+        </form>
+    </details>
+</div>
 <p class="trip-meta">{{ trip.start_date }} &ndash; {{ trip.end_date }} &middot; <span class="pill pill-neutral">{{ trip.status }}</span></p>
 
 <div class="card">
