@@ -1,49 +1,27 @@
 # AI Trip and Outdoor Activity Planner
 
-Capstone project for the Data Experts bootcamp. Users save destinations and
-preferences, then ask an agent to build a weather-aware itinerary — one that
-reschedules outdoor activities around rain or bad air quality, builds a
-packing list, and explains why it made each change.
+Capstone project for the Data Experts bootcamp. The project provides an App to create and track each trip. Users can also save destinations and
+preferences, then ask an AI agent to build a weather-aware itinerary. They can reschedules outdoor activities around rain or bad air quality, builds a
+packing list, and ask why it made each changes to the plan.
 
-Built on Databricks: Lakebase (managed Postgres) for storage, a Spark
-pipeline for ingestion/enrichment, pgvector embeddings for semantic
-retrieval, and a Databricks Agent Bricks agent wired to a custom MCP server
-for both retrieval and write actions. Follows the connection/deploy patterns
-from [`databricks-lakebase-app-day-3`](https://github.com/arunpalanoor/databricks-lakebase-app-day-3).
-
-> Status: actively being built against a 2026-08-09 EOD deadline. This
-> README tracks the plan and will get a cleanup pass before final
-> submission.
-
-## Capstone requirements → how this project meets them
-
-| Requirement | How |
-|---|---|
-| Spark data pipeline | Ingests destination/attraction data (Wikimedia) and weather/air-quality data (Open-Meteo), enriches and writes it into Lakebase tables. See `pipeline/`. |
-| Third-party API integration | Open-Meteo (geocoding, weather, air quality) + Wikimedia (descriptions, attractions). |
-| Unstructured data processing | Destination descriptions, attraction info, activity requirements, and user notes are embedded (sentence-transformers) for semantic retrieval. |
-| Databricks App with a frontend | A dashboard app (Flask) for viewing/managing trips and itineraries, deployed as its own Databricks App. |
-| AI agent with tools (read + write) | Agent Bricks agent using a FastMCP server that exposes retrieval tools (search destinations/activities, check weather) and write tools (create/update itinerary items, packing list) against Lakebase. |
+This is built on Databricks: Lakebase (managed Postgres) for storage, a Spark pipeline for ingestion/enrichment, pgvector embeddings for semantic retrieval, and a Databricks Agent Bricks agent enabled to use a custom MCP server for both retrieval and write actions. 
 
 ## Usage (end to end)
 
-1. **Save a trip** — "I'm planning a trip to Yosemite, June 12–15, I like hiking and photography." App geocodes the destination, pulls its Wikimedia description + nearby attractions, stores a `trips` row and candidate `activities`.
+1. **Save a trip** — "I'm planning a trip to Edinburgh, August 12–15, I like hiking and photography." App geocodes the destination, pulls its Wikimedia description + nearby attractions, stores a `trips` row and candidate `activities`.
 2. **Generate itinerary** — "Build me the itinerary." Agent retrieves activities matching the user's interests via embedding similarity, cross-references the weather/AQI forecast for those dates, and lays out a day-by-day plan. Writes `itinerary_items`.
 3. **Weather disrupts the plan** — When forecast changes make a scheduled outdoor activity a bad idea (rain, poor AQI), the agent reschedules it and explains why in plain language.
 4. **Packing list** — "What should I pack?" Agent looks at the finalized itinerary plus weather/AQI/UV across those days and produces a packing list with reasons.
-5. **Manual edits** — "Move the kayaking to the morning" / "Remove the museum stop." Agent performs the write directly against `itinerary_items`, no full regeneration.
-6. **Ask about a place** — "What's worth seeing near the falls?" Agent semantically searches embedded Wikimedia attraction text and returns suggestions, which can be added to the itinerary.
+5. **Manual edits** — "Move the kayaking to the morning" / "Remove the Castle visit." Agent performs the write directly against `itinerary_items`, no full regeneration.
+6. **Ask about a place** — "What's worth seeing near the City?" Agent semantically searches embedded Wikimedia attraction text and returns suggestions, which can be added to the itinerary.
 
 ### User profile
 
-A lightweight `users` profile (interests, constraints/allergies, free-text
-notes) is editable from a **settings section on the dashboard page** (no
-modal/pop-up — same functionality, less UI work). Agent Bricks' system
-prompt is fixed at agent-creation time and can't be templated per user, so
-the profile reaches the agent via `get_user_profile` /
-`update_user_profile` MCP tools, plus a static system-prompt instruction
-telling the agent to always call `get_user_profile` first — the same
-pattern Day 3 uses for `get_current_user`/`get_account_summary`.
+Users can setup their profile (interests, constraints/allergies, free-text
+notes) is editable from a **settings section on the dashboard page**. 
+
+The system prompt of the Agent is instructed to fetch profile details first via `get_user_profile` /
+`update_user_profile` MCP tools.
 
 ## Third-party APIs
 
@@ -51,35 +29,21 @@ pattern Day 3 uses for `get_current_user`/`get_account_summary`.
 - [Open-Meteo Weather API](https://open-meteo.com/en/docs) — hourly forecasts.
 - [Open-Meteo Air Quality API](https://open-meteo.com/en/docs/air-quality-api) — AQI, particulate matter, UV, pollen.
 - [Wikimedia APIs](https://www.mediawiki.org/wiki/API:Main_page) — destination descriptions and nearby attractions.
-
-Open-Meteo requires no API key for noncommercial use under its free limits.
+Required valid email id to be added to the api header. The API calls with invalid email IDs were ending up in 429 failures leading to Spark jobs failing consistently.
 
 ## Architecture
 
-```
-Spark pipeline (pipeline/)
-    Open-Meteo (geocoding/weather/air quality) --\
-    Wikimedia (descriptions/attractions)         --> Lakebase tables + embeddings
-                                                        |
-                                                        v
-Agent Bricks agent  --(MCP tool calls)-->  mcp_server/  --(reads/writes)-->  Lakebase (Postgres + pgvector)
-                                                                                    ^
-                                                                                    |
-                                            dashboard/ (Flask app)  ----------------+
-```
-
-- `mcp_server/` and `dashboard/` are two separate Databricks Apps, same
-  pattern as Day 3: one serves MCP tool calls to the agent, the other serves
-  a human-facing UI. Both read/write the same Lakebase instance.
-- `pipeline/` is a Spark job (run as a Databricks job/notebook) that pulls
-  from the third-party APIs, transforms the data, computes embeddings for
-  unstructured text, and writes to Lakebase.
+- `mcp_server/` and `dashboard/` are setup as databricks Apps- one serves MCP tool calls to the agent, the other serves
+  a human-facing UI. Both read/write the same Lakebase database.
+- When a user creates or edits a trip, `enrich_trip` and `refresh_weather` from `pipeline/` is run as a Spark job that pulls
+  from the third-party APIs, transforms the data, computes embeddings for unstructured text, and writes to Lakebase. There are some limitations observered for the Wikipedia API limitation. It ends up with 429 Client Error (Too many requests to url). Added a sleep between calls, and experimented with different sleep times, however the performance is irratic and requires further investigation or alternate API to be explored.
+- Refresh_weather is also setup as a separate scheduled daily job, which runs accurately.
 
 ## Lakebase tables
 
 Schema: [`sql/schema.sql`](sql/schema.sql). Apply with `psql "$LAKEBASE_URL" -f sql/schema.sql`.
 
-- `users` — profile + free-text preferences/notes.
+- `users` — profile + free-text preferences/notes. This can be extended to enable password/authentication. Currently not implemented.
 - `trips` — one row per planned trip.
 - `destinations` — trip stops, geocoded, with Wikimedia description.
 - `activities` — candidate activities per destination (Wikimedia nearby attractions + user/agent-added), flagged `is_outdoor` / `air_quality_sensitive` for weather-aware scheduling.
@@ -91,8 +55,7 @@ Schema: [`sql/schema.sql`](sql/schema.sql). Apply with `psql "$LAKEBASE_URL" -f 
 ## Context engineering
 
 Embed destination descriptions, attraction info, activity requirements, and
-user notes (sentence-transformers, same model as Day 3:
-`all-MiniLM-L6-v2`). Retrieve suitable activities by combining semantic
+user notes (sentence-transformers,`all-MiniLM-L6-v2`). Retrieve suitable activities by combining semantic
 similarity (interests) with structured filters (current/forecast weather,
 air quality).
 
@@ -119,7 +82,7 @@ setup_secrets.py One-time script to store the Lakebase URL secret
 ## Agent setup
 
 The agent is a Databricks **Agent Bricks** agent with this MCP server
-registered as an external tool. Suggested system prompt:
+registered as an external tool. System prompt:
 
 ```
 You are a trip planning assistant with tools to manage a user's trips,
@@ -179,14 +142,11 @@ forecast isn't ready yet rather than guessing.
 
 ## Setup
 
-1. **Lakebase**: create the instance, apply `sql/schema.sql`, run
-   `python setup_secrets.py` to store the connection URL under the
-   `trip_planner` secret scope (key `lakebase-url`).
-2. **Pipeline**: create a Git folder for this repo in Databricks. Create
-   **one Databricks Job with two tasks** pointed at `pipeline/enrich_trip.py`
+1. **Lakebase**: create the Lakebase instance, run the SQL query on lakebase SQL EDITOR using query from `sql/schema.sql`, run `python setup_secrets.py` to store the connection URL under the `trip_planner` secret scope (key `lakebase-url`).
+2. **Pipeline**: Create **one Databricks Job with two tasks** pointed at `pipeline/enrich_trip.py`
    then `pipeline/refresh_weather.py` (task 2 depending on task 1), both
    reading a shared `trip_id` job parameter - this is what `create_trip`/
-   `update_trip` trigger. Separately, schedule `pipeline/refresh_weather.py`
+   `update_trip` triggers. Separately, schedule `pipeline/refresh_weather.py`
    to run **daily with no `trip_id` param**, to refresh all active trips.
    Note this job's id for step 3.
 3. **Apps**: deploy `mcp_server/` and `dashboard/` as two separate
@@ -197,5 +157,4 @@ forecast isn't ready yet rather than guessing.
    `mcp_server` app's URL (streamable HTTP).
 5. **Agent Bricks**: create an agent, attach the registered MCP server as a
    tool, and use the system prompt above.
-6. **Try it**: open the `dashboard` app's URL, create a trip and save a
-   profile, then chat with the agent to build an itinerary.
+6. **Use**: open the `dashboard` app's URL, create a profile and a trip and save, then chat with the agent to build an itinerary.
