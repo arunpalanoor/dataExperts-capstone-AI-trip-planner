@@ -202,7 +202,7 @@ def trip_detail(trip_id):
         FROM itinerary_items i
         LEFT JOIN activities a ON a.id = i.activity_id
         WHERE i.trip_id = %s
-        ORDER BY i.day_date, i.position
+        ORDER BY i.day_date, i.start_time NULLS LAST, i.position
         """,
         (trip_id,),
     )
